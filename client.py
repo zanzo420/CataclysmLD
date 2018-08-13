@@ -432,6 +432,9 @@ class Client(MastermindClientTCP): # extends MastermindClientTCP
             return client.open_terrain_menu(pos)
         elif clicked == 'Creature':
             pass
+        elif clicked == 'Items':
+            # TODO: I assume the player wants to look at the items to decide what to take.
+            return client.open_items_on_ground(pos, tile)
 
     def open_equipment_menu(self):
         self.screen.fill((55, 55, 55), special_flags=pygame.BLEND_SUB) # darken the screen to indicate an action is required.
@@ -471,7 +474,7 @@ class Client(MastermindClientTCP): # extends MastermindClientTCP
         # now that we've drawn the equipment menu we need to wait until the player clicks a UI_component.
         pygame.event.clear() # clear the event queue so we can wait for player feedback.
         sidebar_components = []
-        _grabbed = None
+        _grabbed = self.player.grabbed
         while True:
             self.screen.blit(equipment_menu.surface, (equipment_menu.x, equipment_menu.y))
             for UI_component in equipment_menu.UI_components:
@@ -503,11 +506,28 @@ class Client(MastermindClientTCP): # extends MastermindClientTCP
                                     _grabbed = None # place the item into the blank spot.
                                     #TODO: tell the server to move the item server-side
                                 else:
-                                    _grabbed = UI_component.item # swap the items.
-                                    UI_component.item = _grabbed
-                                    #TODO: tell the server to swap the items server-side
 
-                pass
+                                    _tmp1 = UI_component.item # swap the items.
+                                    _tmp2 = _grabbed
+                                    UI_component.item = _tmp2
+                                    _grabbed = _tmp1
+                                    _tmp1 = None
+                                    _tmp2 = None
+
+                                    #_grabbed = _tmp1
+                                    #TODO: tell the server to swap the items server-side
+                                    '''
+                                    _player_requesting = self.players[data.ident]
+                                    _item = data.args[0] # the item we are moving.
+                                    _from_type = data.args[1] # creature.held_item, creature.held_item.container, bodypart.equipped, bodypart.equipped.container, position, blueprint
+                                    _from_list = [] # the object list that contains the item. parse the type and fill this properly.
+                                    _to_list = data.args[2] # the list the item will end up. passed from command.
+                                    _position = Position(data.args[3], data.args[4], data.args[5]) # pass the position even if we may not need it.
+                                    '''
+
+                                    _command = Command(self.player.name, 'move_item', (tile['position'].x, tile['position'].y, tile['position'].z)) # send calculated_move action to server and give it the position of the tile we clicked.
+                                    return _command
+
             elif(event.type == pygame.KEYUP):
                 # when we want to do something with the keyboard.
                 if event.key == pygame.K_m:
@@ -515,12 +535,103 @@ class Client(MastermindClientTCP): # extends MastermindClientTCP
                     pass
                 elif(event.key == pygame.K_ESCAPE): # close the menu
                     return
+
+    def open_items_on_ground(self, pos, tile):
+        self.items_on_ground_background = pygame.image.load('./img/items_on_ground.png').convert_alpha()
+        _start_item_x = 400
+        _start_item_y = 250
+        self.screen.blit(self.items_on_ground_background, (_start_item_x, _start_item_y))
+        _items = tile['items'] #need to get the items from the position
+        _page = 0 # internal int to keep track of what _item_groups page we are looking at currently.
+        _max_items_per_group = 16
+        # draw a box for the contained items.
+
+        _item_groups = defaultdict(list)
+        # first find out how many items we have and sort them into groups.
+
+        # i need them 'paginated' so the order could be used as as x, y locations.
+        _count = 0
+        _group = 0
+        for item in _items:
+            if(_count > _max_items_per_group):
+                _group = _group + 1
+                _count = 0
+            _item_groups[_group].append(item)
+            _count = _count + 1
+
+
+        # now that we've drawn the open_items_on_ground menu we need to wait until the player clicks a item.
+        pygame.event.clear() # clear the event queue so we can wait for player feedback.
+        while True:
+                # blit the current _page worth of items.
+                #TODO: take into consideration where the window opens.
+
+                _item_x = _start_item_x + 3 # adjust for within image offset.
+                _item_y = _start_item_y + 13
+
+                # blit
+                for item in _item_groups[_page]:
+                    print(item)
+                    fg = self.TileManager.TILE_TYPES[item.ident]['fg']
+                    self.screen.blit(self.TileManager.TILE_MAP[fg], (_item_x, _item_y))
+                    _item_x = _item_x + 24
+                    if(_item_x > 24*3+_start_item_x):
+                        _item_y = _item_y + 24
+                        _item_x = 0
+
+                pygame.display.flip() # flip the screen
+                event = pygame.event.wait() # wait for player input.
+                if event.type == pygame.QUIT:
+                    client.disconnect()
+                    pygame.quit()
+                    sys.exit()
+                elif(event.type == pygame.MOUSEBUTTONDOWN):
+                    # dragging to somwhere. need a check for bounds of the item while the mouse is being heldself.
+                    pass
+                elif(event.type == pygame.MOUSEBUTTONUP):
+                    # we clicked somewhere while the menu is up.
+                    # if we clicked an item we need to get the position and see what item it was.
+                    pos = pygame.mouse.get_pos()
+                    print('pos:', pos)
+                    _x_count = 0
+                    _y_count = 0
+                    for item in _item_groups[_page]:
+                        print('item.ident:', item.ident)
+                        # return the item clicked and do something with it.
+                        _item_x_min = _x_count * 24 + _start_item_x
+                        _item_x_max = _x_count * 24 + 23 + _start_item_x
+                        print(_item_x_min, _item_x_max)
+
+                        if(_x_count > 3):
+                            _x_count = 0
+                            _y_count = _y_count + 1
+                        _item_y_min = _y_count * 24 + _start_item_y
+                        _item_y_max = _y_count * 24 - 23 + _start_item_x
+                        print(_item_y_min, _item_y_max)
+
+                        if(pos[0] > _item_x_min and pos[0] < _item_x_max):
+                            print('in x')
+                            if(pos[1] > _item_y_min and pos[1] < _item_y_max):
+                                print('clicked', str(item.ident))
+
+
+                    #_command = Command(self.player.name, 'take_item', (tile['position'].x, tile['position'].y, tile['position'].z), item.ident) # ask the server to pickup the item by ident. #TODO: is there a better way to pass it to the server without opening ourselves up to cheating?
+                    #return _command
+
+                elif(event.type == pygame.KEYUP):
+                    # when we want to do something with the keyboard.
+                    if event.key == pygame.K_m:
+                        #(m)ove an item
+                        pass
+                    elif(event.key == pygame.K_ESCAPE): # close the menu
+                        return
+
+
 #
 #   if we start a client directly
 #
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Cataclysm LD Client',
-                                     epilog="Please start the client with a first and last name for your character.")
+    parser = argparse.ArgumentParser(description='Cataclysm LD Client', epilog="Please start the client with a first and last name for your character.")
     parser.add_argument('--host', metavar='Host', help='Server host', default='localhost')
     parser.add_argument('-p', '--port', metavar='Port', type=int, help='Server port', default=6317)
     parser.add_argument('first_name', help='Player\'s first name')
