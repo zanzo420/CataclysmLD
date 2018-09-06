@@ -1,5 +1,6 @@
-from .profession import *
-from .creature import *
+from .profession import Profession
+from .creature import Creature
+import pprint
 #from .position import *
 
 class Player(Creature):
@@ -7,7 +8,11 @@ class Player(Creature):
         Creature.__init__(self)
         self.name = name
         self.style_selected = None
+        self.profession = Profession('survivor')
         for bodyPart in self.body_parts:
             print(bodyPart)
 
-        #TODO: need to figure out a system for starting equipment. (By profession probably.)
+        print(self.profession)
+    
+    def __str__(self):
+        return self.name + ' the ' + str(self.profession)

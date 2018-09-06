@@ -4,6 +4,7 @@ import os
 import random
 import sys
 import time
+import pprint
 from collections import defaultdict
 
 import src.global_vars
@@ -18,7 +19,10 @@ from src.options import Options
 from src.player import Player
 from src.position import Position
 from src.recipe import Recipe, RecipeManager
-from src.tile import Terrain, TileManager
+from src.terrain import Terrain
+from src.tileManager import TileManager
+from src.profession import ProfessionManager, Profession
+from src.monster import MonsterManager
 #import game
 from src.worldmap import Worldmap
 
@@ -43,14 +47,18 @@ class Server(MastermindServerTCP):
         self.players = {} # all the Players() that exist in the world whether connected or not.
         self.localmaps = {} # the localmaps for each player.
         self.overmaps = {} # the dict of all overmaps by player.name
-        self.options = Options()
+        #self.options = Options()
         self.calendar = Calendar(0, 0, 0, 0, 0, 0) # all zeros is the epoch
-        self.options.save()
+        # self.options.save()
         self.worldmap = Worldmap(26) # create this many chunks in x and y (z is always 1 (level 0) for genning the world. we will build off that for caverns and ant stuff and z level buildings.
         self.starting_locations = [Position(23, 23, 0)] #TODO: starting locations should be loaded dynamically from secenarios
         for i in range(1, 13):
             self.starting_locations.append(Position(23*i, 23, 0))
         self.RecipeManager = RecipeManager()
+        self.ProfessionManager = ProfessionManager()
+        self.MonsterManager = MonsterManager()
+        self.ItemManager = self.worldmap.ItemManager
+        self.FurnitureManager = self.worldmap.FurnitureManager
 
     def calculate_route(self, pos0, pos1, consider_impassable=True): # normally we will want to consider impassable terrain in movement calculations. creatures that don't can walk or break through walls.
         #print('----------------Calculating Route---------------------')
@@ -60,7 +68,6 @@ class Server(MastermindServerTCP):
         explored = []
 
         while len(reachable) > 0:
-
             position = random.choice(reachable) # get a random reachable position #TODO: be a little more intelligent about picking the best reachable position.
 
             # If we just got to the goal node. return the path.
@@ -88,6 +95,49 @@ class Server(MastermindServerTCP):
 
         return None
 
+    def handle_new_player(self, ident):
+        self.players[ident] = Player(ident)
+        # self.players[ident].profession = 'survivor'
+        self.players[ident].position = random.choice(self.starting_locations)
+        self.worldmap.put_object_at_position(self.players[ident], self.players[ident].position)
+        self.localmaps[ident] = self.worldmap.get_chunks_near_position(self.players[ident].position)
+        # give the player their starting items by referencing the ProfessionManager.
+        # print('profession items ')
+        '''
+        ident : survivor
+        _comment : A basic as it comes. I'll use this for the default profession.
+        name : Survivor
+        description : Some would say that there's nothing particularly notable about you. But you survived. That's more than most can say right now.
+        skills : ["{'survival': 1}"]
+        points : 0
+        items : {'equipped': [{'TORSO': 'backpack'}], 'in_containers': [{'backpack': 'cell_phone'}]}
+        flags : []
+        CBMs : []
+        '''
+        #print(self.players[ident].profession)
+        for key, value in self.ProfessionManager.PROFESSIONS[str(self.players[ident].profession)].items():
+            print(key, ':', value)
+        
+            # print(value.items())
+            # TODO: load the items into the player equipment slots as well as future things like CBMs and flags
+            if(key == 'equipped_items'):
+                for equip_location, item_ident in value.items():
+                    print(equip_location, item_ident)
+                    for bodypart in self.players[ident].body_parts:
+                        if(bodypart.ident.split('_')[0] == equip_location):
+                            if(bodypart.slot0 is None):
+                                bodypart.slot0 = Item(item_ident, self.ItemManager.ITEM_TYPES[item_ident]) # need to pass the reference to load the item with data.
+                                break
+                            elif(bodypart.slot1 is None):
+                                bodypart.slot1 =  Item(item_ident, self.ItemManager.ITEM_TYPES[item_ident]) # need to pass the reference to load the item with data.
+                                break
+                    else:
+                        print('player needed an item but no free slots found')
+            elif(key == 'items_in_containers'):
+                for location_ident, item_ident in value.items():
+                    print(location_ident, item_ident)
+
+        print('New player joined.', self.players[ident])
 
     def callback_client_handle(self, connection_object, data):
         #print("Server: Recieved data \""+str(data)+"\" from client \""+str(connection_object.address)+"\".")
@@ -106,11 +156,7 @@ class Server(MastermindServerTCP):
                             self.players[data.ident].position = tmp_player.position
                             self.localmaps[data.ident] = self.worldmap.get_chunks_near_position(self.players[data.ident].position)
                         else: # new player
-                            print('new player joined.')
-                            self.players[data.ident] = Player(data.ident)
-                            self.players[data.ident].position = random.choice(self.starting_locations)
-                            self.worldmap.put_object_at_position(self.players[data.ident], self.players[data.ident].position)
-                            self.localmaps[data.ident] = self.worldmap.get_chunks_near_position(self.players[data.ident].position)
+                           self.handle_new_player(data.ident)
 
                     print('Player ' + str(data.ident) + ' entered the world at position ' + str(self.players[data.ident].position))
                     self.callback_client_send(connection_object, self.players[data.ident])
@@ -314,7 +360,6 @@ class Server(MastermindServerTCP):
     def callback_disconnect_client(self, connection_object):
         print("Server: Client from \""+str(connection_object.address)+"\" disconnected.")
         return super(Server, self).callback_disconnect_client(connection_object)
-
 
     def process_creature_command_queue(self, creature):
         actions_to_take = creature.actions_per_turn

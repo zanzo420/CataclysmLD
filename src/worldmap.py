@@ -1,20 +1,20 @@
-from collections import defaultdict
-import time
-import pprint
 import json
-import pickle
 import os
+import pickle
+import pprint
 import random
+import time
+from collections import defaultdict
 
-from .tile import Terrain
+from .blueprint import Blueprint
 from .creature import Creature
+from .furniture import Furniture, FurnitureManager
+from .item import Item, ItemManager
+from .lighting import Lighting
 from .monster import Monster
 from .player import Player
-from .lighting import Lighting
 from .position import Position
-from .item import Item, ItemManager
-from .furniture import Furniture, FurnitureManager
-from .blueprint import Blueprint
+from .terrain import Terrain
 
 # weather = [WEATHER_CLEAR, WEATHER_RAIN, WEATHER_FOG, WEATHER_STORM, WEATHER_TORNADO]
 
@@ -65,7 +65,7 @@ class Worldmap:
         count = 0
         for i in range(self.WORLD_SIZE):
             for j in range(self.WORLD_SIZE):
-                for k in range(0, 1): #just load z0 for now. load the rest as needed.
+                for k in range(0, 1): # just load z0 for now. load the rest as needed.
                     self.WORLDMAP[i][j] = dict()
                     path = str('./worlds/default/' + str(i) + '_' + str(j) + '_' + str(k) + '.chunk')
 
@@ -73,7 +73,7 @@ class Worldmap:
                         with open(path, 'rb') as fp:
                             self.WORLDMAP[i][j][k] = pickle.load(fp)
                             self.WORLDMAP[i][j][k].was_loaded = 'yes'
-                        if(count < 60):
+                        if(count < self.WORLD_SIZE-1):
                             print('L', end='')
                             count = count + 1
                         else:
@@ -381,7 +381,7 @@ class Worldmap:
             for item in furniture_type['bash']['items']:
                 print(item)
                 print(str(self.ItemManager.ITEM_TYPES[str(item['item'])]))
-                self.put_object_at_position(Item(self.ItemManager.ITEM_TYPES[str(item['item'])]['ident'], self.ItemManager.ITEM_TYPES[str(item['item'])]), position) # need to pass the reference to load the item with data.                #print(item)
+                self.put_object_at_position(Item(self.ItemManager.ITEM_TYPES[str(item['item'])]['ident'], self.ItemManager.ITEM_TYPES[str(item['item'])]), position) # need to pass the reference to load the item with data.
             tile['furniture'] = None
             # get the 'bash' dict for this object from furniture.json
             # get 'str_min'
@@ -398,7 +398,7 @@ class Worldmap:
 
     def furniture_open(self, object, position): # the object doing the opening.
         tile = self.get_tile_by_position(position)
-        furiture = tile['furniture']
+        furniture = tile['furniture']
         if(furniture is not None):
             if 'open' in furniture: #
                 # replace this furniture with the open version.

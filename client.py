@@ -18,7 +18,7 @@ from src.messagebox import MessageBox
 from src.player import Player
 from src.position import Position
 from src.recipe import Recipe, RecipeManager
-from src.tile import TileManager
+from src.tileManager import TileManager
 from src.user_interface import (Button, Crafting_Menu, Directional_choice,
                                 Equipment_Button, Equipment_Menu, FontManager,
                                 Hotbar, ListBox, Listbox_item, Movement_menu,
@@ -67,7 +67,7 @@ class Client(MastermindClientTCP): # extends MastermindClientTCP
         # origin_position = origin_position # store the player position for fov origin
         # convert chunks to grid
         level = defaultdict(dict)
-        light_map = defaultdict(dict)
+        #light_map = defaultdict(dict)
         for tile in self.localmap[:]: # we only need the tiles around radius.
             if int(tile['position'].x) < origin_position.x-radius or int(tile['position'].x) > origin_position.x+radius+1:
                 self.localmap.remove(tile)
@@ -169,9 +169,13 @@ class Client(MastermindClientTCP): # extends MastermindClientTCP
             self.screen.fill((light_intensity, light_intensity, light_intensity), rect=(x*24, y*24, 24, 24), special_flags=pygame.BLEND_SUB)
 
             # render debug text
-            #myfont = pygame.font.SysFont("monospace", 8)
-            #label = myfont.render(str(position.x)+','+str(position.y), 1, (255,255,0))
-            #self.screen.blit(label, (x*24, y*24))
+            '''
+            myfont = pygame.font.SysFont("monospace", 8)
+            label1 = myfont.render(str(position.x), 1, (255,255,0))
+            label2 = myfont.render(str(position.y), 1, (255,255,0))
+            self.screen.blit(label1, (x*24, y*24))
+            self.screen.blit(label2, (x*24, y*24+8))
+            '''
 
             # then blit weather. Weather is the only thing above players and creatures.
             #TODO: blit weather
@@ -222,7 +226,6 @@ class Client(MastermindClientTCP): # extends MastermindClientTCP
         #self.listboxes[0].add(Listbox_item('item 7', Item('brewing_cookbook')))
 
         self.messageBox = MessageBox(self.screen)
-        # print('TILE_MAP size: ' + str(len(TILE_MAP)))
 
     def open_crafting_menu(self):
         #TODO: allow passing a string to skip to the choose direction part.
@@ -430,7 +433,7 @@ class Client(MastermindClientTCP): # extends MastermindClientTCP
                                 print(str(item_clicked.text))
                                 clicked = item_clicked.text
 
-        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        #print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
         if clicked == 'Movement':
             return client.open_movement_menu(pos, tile) # pass back the results of the movement window. returned as command 'calculated_move'
         elif clicked == 'Terrain':
@@ -443,7 +446,7 @@ class Client(MastermindClientTCP): # extends MastermindClientTCP
 
     def open_equipment_menu(self):
         self.screen.fill((55, 55, 55), special_flags=pygame.BLEND_SUB) # darken the screen to indicate an action is required.
-        equipment_menu = Equipment_Menu(self.screen, (0, 0, 400, 496), self.FontManager, self.player.body_parts)
+        equipment_menu = Equipment_Menu(self.screen, (0, 0, 400, 496), self.FontManager, self.TileManager, self.player.body_parts)
 
         # work out the internal list of UI_components so we can iterate them if needed.
         _listboxes = []
